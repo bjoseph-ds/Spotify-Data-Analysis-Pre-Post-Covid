@@ -1,0 +1,778 @@
+---
+title: "Final Project"
+output:
+  word_document: default
+  html_document: default
+date: "2024-11-18"
+team: Brat
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Suppress messages and warnings
+knitr::opts_chunk$set(
+  echo = TRUE,       
+  warning = FALSE,   
+  message = FALSE,   
+  fig.width = 8,     
+  fig.height = 6     
+)
+```
+
+# Abstract
+
+The COVID-19 pandemic has played a tremendous role in today’s society, from work to personal life. The music industry has also changed during COVID-19, with songs becoming shorter and popular music genres fluctuating. This paper compares and contrasts the trends in music before and after the pandemic. Our analysis will provide the music industry with information as to which songs are gaining popularity and how to increase their streams and sales. Using R programming, we created a multivariate ANOVA test to determine the significant variables of our choosing– average danceability and BPM of the top 50 most popular songs each year before and after COVID-19 (2015-2023). We completed our research with time series and random forest machine learning algorithms as well as clustering unsupervised machine learning algorithms. 
+
+# Introduction
+
+The streaming music industry, Spotify in particular, has developed into a rich field for data analysis, contributing insights on listening preferences, and evolving popularity shifts in music over time. This study uses machine learning and statistical modeling to examine Spotify’s annual top tracks from 2010-2023. We aim to reveal any significant differences in song popularity, danceability, and tempo through our datasets sourced by Kaggle- providing detailed yearly snapshots of various trends in music characteristics. The datasets were originally collected from Spotify’s Web API which evaluated songs into 12 features: “key, mode, time signature, acousticness, danceability, energy, instumentalness, liveliness, loudness, speechiness, valence, and tempo” (Maloney et al., 2021). These data collections reveal patterns in the music production, enabling us to assess changes before and after the Covid-19 pandemic.
+
+The primary goal of this paper is to determine whether this global event has measurably altered music tastes and preferences. We plan to answer the following critical questions through our analytical techniques: Is there a statistically significant change in danceability or tempo before and after Covid-19? Do these attributes correlate with increased or decreased popularity? Can these trends predict future music preferences?
+
+To address these questions, our team utilizes a multivariate analysis approach, using t-tests to assess the significance in pre- and post-pandemic changes, in addition to random forests and time series analysis to model these specific trends. This study seeks to interpret historical patterns, and provide the music industry with predictive insights for future listener engagement.
+
+In a similar study by Kalustian and Ruth (2021), they studied Spotify music listening patterns in 2019 and 2020, amidst the Covid-19 pandemic, in DACH countries (Germany, Austria, and Switzerland) who shared German as the dominant language. This study looked at variables such as danceability, energy, loudness, valence, tempo and stream count and categorized them into clusters with high or low arousal-potential and positive or negative emotionality associated with those aspects. The current report seeks to expand pre and post Covid-19 music differences from 2015-2023 to identify and compare changes in features such as popularity and danceability impacted by the pandemic. 
+
+In looking at the song features categorized by Spotify, we aim to create predictive information that can be utilized to determine the direction of musical development within the entertainment industry along with the rise and influence of social media sharing platforms such as Tik Tok, Instagram and X.
+
+# Methodologies
+
+- Supervised machine learning: random forest, time series
+- Unsupervised machine learning: clustering
+- Statistical tests: correlation coefficients, multivariate ANOVA
+
+# Exploratory Data Analysis
+
+## Libraries Needed
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(corrplot)
+library(randomForest)
+library(caret)
+
+```
+
+## Datasets
+
+```{r}
+pre_covid <- read_csv("2010-2019spotify.csv")
+post_covid_2020 <- read_csv("2020spotify.csv")
+post_covid_2021 <- read_csv("2021spotify.csv")
+post_covid_2022 <- read_csv("2022spotify.csv")
+post_covid_2023 <- read_csv("2023spotify.csv")
+
+```
+
+## Standardize column names across all datasets
+
+```{r}
+# Pre-COVID renaming and processing
+pre_covid <- pre_covid %>%
+  rename(
+    artist = artist,
+    title = title,
+    genre = `the genre of the track`,
+    tempo = `Beats.Per.Minute -The tempo of the song`,
+    energy = `Energy- The energy of a song - the higher the value, the more energtic`,
+    danceability = `Danceability - The higher the value, the easier it is to dance to this song`,
+    loudness = `Loudness/dB - The higher the value, the louder the song`,
+    liveness = `Liveness - The higher the value, the more likely the song is a live recording`,
+    valence = `Valence - The higher the value, the more positive mood for the song`,
+    acousticness = `Acousticness - The higher the value the more acoustic the song is`,
+    speechiness = `Speechiness - The higher the value the more spoken word the song contains`,
+    duration_in_seconds = `Length - The duration of the song`
+  ) %>%
+  mutate(duration_in_seconds = duration_in_seconds * 1000)  # Convert duration to seconds for Pre-COVID
+
+# Post-COVID 2020 processing
+post_covid_2020 <- post_covid_2020 %>%
+  rename(
+    artist = artist,
+    title = track_name,
+    genre = genre,
+    tempo = tempo,
+    energy = energy,
+    danceability = danceability,
+    loudness = loudness,
+    speechiness = speechiness,
+    acousticness = acousticness,
+    valence = valence,
+    duration_in_seconds = duration_ms
+  ) %>%
+  mutate(year = 2020)
+
+# Post-COVID 2021 processing
+post_covid_2021 <- post_covid_2021 %>%
+  rename(
+    artist = artist_name,
+    title = track_name,
+    tempo = tempo,
+    energy = energy,
+    danceability = danceability,
+    loudness = loudness,
+    speechiness = speechiness,
+    acousticness = acousticness,
+    valence = valence,
+    duration_in_seconds = duration_ms
+  ) %>%
+  mutate(year = 2021)
+
+# Post-COVID 2022 processing
+post_covid_2022 <- post_covid_2022 %>%
+  rename(
+    artist = `Artist Name(s)`,
+    title = `Track Name`,
+    genre = Genres,
+    tempo = Tempo,
+    energy = Energy,
+    danceability = Danceability,
+    loudness = Loudness,
+    speechiness = Speechiness,
+    acousticness = Acousticness,
+    valence = Valence,
+    duration_in_seconds = `Duration (ms)`
+  ) %>%
+  mutate(year = 2022)
+
+# Post-COVID 2023 processing
+post_covid_2023 <- post_covid_2023 %>%
+  rename(
+    artist = artist_name,
+    title = track_name,
+    genre = genres,
+    tempo = tempo,
+    energy = energy,
+    danceability = danceability,
+    loudness = loudness,
+    speechiness = speechiness,
+    acousticness = acousticness,
+    valence = valence,
+    duration_in_seconds = duration_ms
+  ) %>%
+  mutate(year = 2023)
+
+# Define the columns to retain
+columns_to_retain <- c(
+  "title", "artist", "tempo", "energy", "danceability", 
+  "loudness", "liveness", "valence", "duration_in_seconds", 
+  "acousticness", "speechiness", "year"
+)
+
+# Retain only necessary columns for all datasets
+pre_covid <- pre_covid %>%
+  select(any_of(columns_to_retain))
+
+post_covid_2020 <- post_covid_2020 %>%
+  select(any_of(columns_to_retain))
+
+post_covid_2021 <- post_covid_2021 %>%
+  select(any_of(columns_to_retain))
+
+post_covid_2022 <- post_covid_2022 %>%
+  select(any_of(columns_to_retain))
+
+post_covid_2023 <- post_covid_2023 %>%
+  select(any_of(columns_to_retain))
+
+# Fix columns with different dist
+post_covid_2020 <- post_covid_2020 %>%
+  mutate(across(c(energy, danceability, liveness, valence, acousticness, speechiness), ~ . * 100))
+
+post_covid_2021 <- post_covid_2021 %>%
+  mutate(across(c(energy, danceability, liveness, valence, acousticness, speechiness), ~ . * 100))
+
+post_covid_2023 <- post_covid_2023 %>%
+  mutate(across(c(energy, danceability, liveness, valence, acousticness, speechiness), ~ . * 100))
+
+pre_covid <- pre_covid %>% filter(!(year %in% c(2010, 2011, 2012, 2013, 2014)))
+
+# Print updated column names for verification after standardization
+cat("Pre-COVID dataset columns (after standardizing):\n", colnames(pre_covid), "\n\n")
+cat("Post-COVID 2020 dataset columns (after standardizing):\n", colnames(post_covid_2020), "\n\n")
+cat("Post-COVID 2021 dataset columns (after standardizing):\n", colnames(post_covid_2021), "\n\n")
+cat("Post-COVID 2022 dataset columns (after standardizing):\n", colnames(post_covid_2022), "\n\n")
+cat("Post-COVID 2023 dataset columns (after standardizing):\n", colnames(post_covid_2023), "\n\n")
+
+View(pre_covid)
+```
+## Summary Statistics 
+
+### Each Individual Dataset
+
+```{r}
+# Summary statistics for pre-COVID dataset
+pre_covid_summary <- pre_covid %>%
+  summarise(
+    danceability_mean = mean(danceability, na.rm = TRUE),
+    danceability_median = median(danceability, na.rm = TRUE),
+    danceability_range = range(danceability, na.rm = TRUE),
+    tempo_mean = mean(tempo, na.rm = TRUE),
+    tempo_median = median(tempo, na.rm = TRUE),
+    tempo_range = range(tempo, na.rm = TRUE),
+    energy_mean = mean(energy, na.rm = TRUE),
+    energy_median = median(energy, na.rm = TRUE),
+    energy_range = range(energy, na.rm = TRUE),
+    loudness_mean = mean(loudness, na.rm = TRUE),
+    loudness_median = median(loudness, na.rm = TRUE),
+    loudness_range = range(loudness, na.rm = TRUE),
+    valence_mean = mean(valence, na.rm = TRUE),
+    valence_median = median(valence, na.rm = TRUE),
+    valence_range = range(valence, na.rm = TRUE),
+    duration_in_seconds_mean = mean(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_median = median(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_range = range(duration_in_seconds, na.rm = TRUE),
+    acousticness_mean = mean(acousticness, na.rm = TRUE),
+    acousticness_median = median(acousticness, na.rm = TRUE),
+    acousticness_range = range(acousticness, na.rm = TRUE),
+    speechiness_mean = mean(speechiness, na.rm = TRUE),
+    speechiness_median = median(speechiness, na.rm = TRUE),
+    speechiness_range = range(speechiness, na.rm = TRUE)
+  )
+
+# Print summary statistics for pre-COVID
+print(pre_covid_summary)
+
+# Repeat the process for post-COVID datasets
+
+# Summary statistics for post-COVID 2020
+post_covid_2020_summary <- post_covid_2020 %>%
+  summarise(
+    danceability_mean = mean(danceability, na.rm = TRUE),
+    danceability_median = median(danceability, na.rm = TRUE),
+    danceability_range = range(danceability, na.rm = TRUE),
+    tempo_mean = mean(tempo, na.rm = TRUE),
+    tempo_median = median(tempo, na.rm = TRUE),
+    tempo_range = range(tempo, na.rm = TRUE),
+    energy_mean = mean(energy, na.rm = TRUE),
+    energy_median = median(energy, na.rm = TRUE),
+    energy_range = range(energy, na.rm = TRUE),
+    loudness_mean = mean(loudness, na.rm = TRUE),
+    loudness_median = median(loudness, na.rm = TRUE),
+    loudness_range = range(loudness, na.rm = TRUE),
+    valence_mean = mean(valence, na.rm = TRUE),
+    valence_median = median(valence, na.rm = TRUE),
+    valence_range = range(valence, na.rm = TRUE),
+    duration_in_seconds_mean = mean(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_median = median(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_range = range(duration_in_seconds, na.rm = TRUE),
+    acousticness_mean = mean(acousticness, na.rm = TRUE),
+    acousticness_median = median(acousticness, na.rm = TRUE),
+    acousticness_range = range(acousticness, na.rm = TRUE),
+    speechiness_mean = mean(speechiness, na.rm = TRUE),
+    speechiness_median = median(speechiness, na.rm = TRUE),
+    speechiness_range = range(speechiness, na.rm = TRUE)
+  )
+
+# Print summary statistics for post-COVID 2020
+print(post_covid_2020_summary)
+
+# Summary statistics for post-COVID 2021
+post_covid_2021_summary <- post_covid_2021 %>%
+  summarise(
+    danceability_mean = mean(danceability, na.rm = TRUE),
+    danceability_median = median(danceability, na.rm = TRUE),
+    danceability_range = range(danceability, na.rm = TRUE),
+    tempo_mean = mean(tempo, na.rm = TRUE),
+    tempo_median = median(tempo, na.rm = TRUE),
+    tempo_range = range(tempo, na.rm = TRUE),
+    energy_mean = mean(energy, na.rm = TRUE),
+    energy_median = median(energy, na.rm = TRUE),
+    energy_range = range(energy, na.rm = TRUE),
+    loudness_mean = mean(loudness, na.rm = TRUE),
+    loudness_median = median(loudness, na.rm = TRUE),
+    loudness_range = range(loudness, na.rm = TRUE),
+    valence_mean = mean(valence, na.rm = TRUE),
+    valence_median = median(valence, na.rm = TRUE),
+    valence_range = range(valence, na.rm = TRUE),
+    duration_in_seconds_mean = mean(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_median = median(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_range = range(duration_in_seconds, na.rm = TRUE),
+    acousticness_mean = mean(acousticness, na.rm = TRUE),
+    acousticness_median = median(acousticness, na.rm = TRUE),
+    acousticness_range = range(acousticness, na.rm = TRUE),
+    speechiness_mean = mean(speechiness, na.rm = TRUE),
+    speechiness_median = median(speechiness, na.rm = TRUE),
+    speechiness_range = range(speechiness, na.rm = TRUE)
+  )
+
+# Print summary statistics for post-COVID 2021
+print(post_covid_2021_summary)
+
+# Summary statistics for post-COVID 2022
+post_covid_2022_summary <- post_covid_2022 %>%
+  summarise(
+    danceability_mean = mean(danceability, na.rm = TRUE),
+    danceability_median = median(danceability, na.rm = TRUE),
+    danceability_range = range(danceability, na.rm = TRUE),
+    tempo_mean = mean(tempo, na.rm = TRUE),
+    tempo_median = median(tempo, na.rm = TRUE),
+    tempo_range = range(tempo, na.rm = TRUE),
+    energy_mean = mean(energy, na.rm = TRUE),
+    energy_median = median(energy, na.rm = TRUE),
+    energy_range = range(energy, na.rm = TRUE),
+    loudness_mean = mean(loudness, na.rm = TRUE),
+    loudness_median = median(loudness, na.rm = TRUE),
+    loudness_range = range(loudness, na.rm = TRUE),
+    valence_mean = mean(valence, na.rm = TRUE),
+    valence_median = median(valence, na.rm = TRUE),
+    valence_range = range(valence, na.rm = TRUE),
+    duration_in_seconds_mean = mean(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_median = median(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_range = range(duration_in_seconds, na.rm = TRUE),
+    acousticness_mean = mean(acousticness, na.rm = TRUE),
+    acousticness_median = median(acousticness, na.rm = TRUE),
+    acousticness_range = range(acousticness, na.rm = TRUE),
+    speechiness_mean = mean(speechiness, na.rm = TRUE),
+    speechiness_median = median(speechiness, na.rm = TRUE),
+    speechiness_range = range(speechiness, na.rm = TRUE)
+  )
+
+# Print summary statistics for post-COVID 2022
+print(post_covid_2022_summary)
+
+# Summary statistics for post-COVID 2023
+post_covid_2023_summary <- post_covid_2023 %>%
+  summarise(
+    danceability_mean = mean(danceability, na.rm = TRUE),
+    danceability_median = median(danceability, na.rm = TRUE),
+    danceability_range = range(danceability, na.rm = TRUE),
+    tempo_mean = mean(tempo, na.rm = TRUE),
+    tempo_median = median(tempo, na.rm = TRUE),
+    tempo_range = range(tempo, na.rm = TRUE),
+    energy_mean = mean(energy, na.rm = TRUE),
+    energy_median = median(energy, na.rm = TRUE),
+    energy_range = range(energy, na.rm = TRUE),
+    loudness_mean = mean(loudness, na.rm = TRUE),
+    loudness_median = median(loudness, na.rm = TRUE),
+    loudness_range = range(loudness, na.rm = TRUE),
+    valence_mean = mean(valence, na.rm = TRUE),
+    valence_median = median(valence, na.rm = TRUE),
+    valence_range = range(valence, na.rm = TRUE),
+    duration_in_seconds_mean = mean(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_median = median(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_range = range(duration_in_seconds, na.rm = TRUE),
+    acousticness_mean = mean(acousticness, na.rm = TRUE),
+    acousticness_median = median(acousticness, na.rm = TRUE),
+    acousticness_range = range(acousticness, na.rm = TRUE),
+    speechiness_range = range(speechiness, na.rm = TRUE)
+  )
+
+```
+### Summary Statistics: Combined post-Covid datasets vs pre-Covid
+
+```{r}
+# Combine the post-COVID datasets (2020-2023)
+post_covid_combined <- bind_rows(post_covid_2020, post_covid_2021, post_covid_2022, post_covid_2023)
+
+# Summary statistics for post-COVID combined dataset
+post_covid_combined_summary <- post_covid_combined %>%
+  summarise(
+    danceability_mean = mean(danceability, na.rm = TRUE),
+    danceability_median = median(danceability, na.rm = TRUE),
+    danceability_range = range(danceability, na.rm = TRUE),
+    tempo_mean = mean(tempo, na.rm = TRUE),
+    tempo_median = median(tempo, na.rm = TRUE),
+    tempo_range = range(tempo, na.rm = TRUE),
+    energy_mean = mean(energy, na.rm = TRUE),
+    energy_median = median(energy, na.rm = TRUE),
+    energy_range = range(energy, na.rm = TRUE),
+    loudness_mean = mean(loudness, na.rm = TRUE),
+    loudness_median = median(loudness, na.rm = TRUE),
+    loudness_range = range(loudness, na.rm = TRUE),
+    valence_mean = mean(valence, na.rm = TRUE),
+    valence_median = median(valence, na.rm = TRUE),
+    valence_range = range(valence, na.rm = TRUE),
+    duration_in_seconds_mean = mean(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_median = median(duration_in_seconds, na.rm = TRUE),
+    duration_in_seconds_range = range(duration_in_seconds, na.rm = TRUE),
+    acousticness_mean = mean(acousticness, na.rm = TRUE),
+    acousticness_median = median(acousticness, na.rm = TRUE),
+    acousticness_range = range(acousticness, na.rm = TRUE),
+    speechiness_mean = mean(speechiness, na.rm = TRUE),
+    speechiness_median = median(speechiness, na.rm = TRUE),
+    speechiness_range = range(speechiness, na.rm = TRUE)
+  )
+
+# Print summary statistics for post-COVID combined dataset
+print(post_covid_combined_summary)
+
+# Print pre-COVID summary statistics for comparison
+print(pre_covid_summary)
+
+```
+
+### Summary Statistics Visualizations: Combined post-Covid datasets vs pre-Covid
+
+```{r}
+# Create a comparison data frame for visualization
+comparison_df <- data.frame(
+  variable = c("Danceability", "Tempo", "Energy", "Loudness", "Valence", "Duration (seconds)", "Acousticness", "Speechiness"),
+  pre_covid_mean = c(pre_covid_summary$danceability_mean, pre_covid_summary$tempo_mean, pre_covid_summary$energy_mean, pre_covid_summary$loudness_mean, 
+                     pre_covid_summary$valence_mean, pre_covid_summary$duration_in_seconds_mean, pre_covid_summary$acousticness_mean, pre_covid_summary$speechiness_mean),
+  post_covid_mean = c(post_covid_combined_summary$danceability_mean, post_covid_combined_summary$tempo_mean, post_covid_combined_summary$energy_mean, post_covid_combined_summary$loudness_mean,
+                      post_covid_combined_summary$valence_mean, post_covid_combined_summary$duration_in_seconds_mean, post_covid_combined_summary$acousticness_mean, post_covid_combined_summary$speechiness_mean)
+)
+
+# Reshape the data to long format for plotting with ggplot
+comparison_long <- comparison_df %>%
+  gather(key = "period", value = "mean_value", pre_covid_mean, post_covid_mean)
+
+# Set the colors for the periods
+comparison_long$period <- factor(comparison_long$period, levels = c("pre_covid_mean", "post_covid_mean"), labels = c("Pre-COVID", "Post-COVID"))
+
+# Create the plot
+p <- ggplot(comparison_long, aes(x = variable, y = mean_value, fill = period)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  facet_wrap(~ variable, scales = "free_y", ncol = 2) +  # Facet for each variable
+  labs(title = "Comparison of Pre-COVID vs Post-COVID for Key Variables", x = "Variable", y = "Mean Value") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),        # Remove x-axis labels from each facet
+        strip.text = element_text(size = 12, face = "bold"),
+        strip.background = element_blank(),  # Remove the background for facet labels
+        axis.title.x = element_blank())       # Remove x-axis title
+
+# Print the plot
+print(p)
+
+```
+
+## Distribution of Key Variables
+
+### Danceability Visualization
+
+```{r}
+# Create a long format dataset for combining Pre-COVID and Post-COVID data
+combined_data_long <- bind_rows(
+  pre_covid %>% mutate(period = "Pre-COVID"),
+  post_covid_2020 %>% mutate(period = "Post-COVID"),
+  post_covid_2021 %>% mutate(period = "Post-COVID"),
+  post_covid_2022 %>% mutate(period = "Post-COVID"),
+  post_covid_2023 %>% mutate(period = "Post-COVID")
+)
+
+# Danceability: Histogram and Density Plot
+p_danceability <- ggplot(combined_data_long, aes(x = danceability, fill = period, color = period)) +
+  geom_histogram(binwidth = 0.05, position = "identity", alpha = 0.5, color = "black") +
+  geom_density(alpha = 0.3) +
+  labs(title = "Distribution of Danceability Scores", x = "Danceability", y = "Count") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  scale_color_manual(values = c("Pre-COVID" = "blue", "Post-COVID" = "red")) +
+  theme_minimal()
+
+# Print Danceability histogram and density plot
+print(p_danceability)
+
+# Boxplot for Danceability (Pre-COVID vs Post-COVID)
+p_boxplot_danceability <- ggplot(combined_data_long, aes(x = period, y = danceability, fill = period)) +
+  geom_boxplot(alpha = 0.5, color = "black") +
+  labs(title = "Danceability Distribution by Period", x = "Period", y = "Danceability") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  theme_minimal()
+
+# Print Danceability Boxplot
+print(p_boxplot_danceability)
+
+```
+
+### Tempo Visualization
+
+```{r}
+# Tempo/BPM: Histogram and Density Plot
+p_tempo <- ggplot(combined_data_long, aes(x = tempo, fill = period, color = period)) +
+  geom_histogram(binwidth = 2, position = "identity", alpha = 0.5, color = "black") +
+  geom_density(alpha = 0.3) +
+  labs(title = "Distribution of Tempo (BPM)", x = "Tempo (BPM)", y = "Count") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  scale_color_manual(values = c("Pre-COVID" = "blue", "Post-COVID" = "red")) +
+  theme_minimal()
+
+# Print Tempo histogram and density plot
+print(p_tempo)
+
+# Violin Plot for Tempo (Pre-COVID vs Post-COVID)
+p_violin_tempo <- ggplot(combined_data_long, aes(x = period, y = tempo, fill = period)) +
+  geom_violin(alpha = 0.5, color = "black") +
+  labs(title = "Tempo Distribution by Period", x = "Period", y = "Tempo (BPM)") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  theme_minimal()
+
+# Print Tempo Violin Plot
+print(p_violin_tempo)
+
+```
+
+## Correlation Analysis
+
+```{r}
+# Select quantitative variables of interest for correlation analysis
+quantitative_variables <- c("danceability", "tempo", "energy", "valence", "loudness", "speechiness", "acousticness")
+
+# Calculate correlation matrix for the selected variables
+correlation_matrix <- combined_data_long %>%
+  select(any_of(quantitative_variables)) %>%
+  cor(use = "complete.obs")  # Use only complete cases
+
+# Print the correlation matrix for review
+print(correlation_matrix)
+
+# Plot the correlation heatmap
+corrplot(correlation_matrix, method = "color", type = "upper", 
+         title = "Correlation Heatmap", tl.cex = 0.8, 
+         addCoef.col = "black", number.cex = 0.7, 
+         diag = FALSE)  # Exclude diagonal values
+
+```
+
+## Trends Over Time: Yearly Averages for Danceability and Tempo
+
+### Line Plots: Plot Yearly Averages of Danceability and Tempo
+
+```{r}
+# Yearly averages for danceability and tempo
+year_trends <- combined_data_long %>%
+  group_by(year, period) %>%
+  summarise(
+    mean_danceability = mean(danceability, na.rm = TRUE),
+    mean_tempo = mean(tempo, na.rm = TRUE)
+  ) %>%
+  arrange(year)
+
+# Reshape data for ggplot to show trends for both danceability and tempo
+year_trends_long <- year_trends %>%
+  gather(key = "variable", value = "mean_value", mean_danceability, mean_tempo)
+
+# Plotting trends for both variables (danceability and tempo) with facets
+ggplot(year_trends_long, aes(x = year, y = mean_value, color = period)) +
+  geom_line(size = 1) +
+  facet_wrap(~ variable, scales = "free_y", ncol = 1) +  # Facet by variable
+  labs(title = "Trends in Danceability and Tempo Over Time",
+       x = "Year", 
+       y = "Mean Value") +
+  scale_color_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  theme_minimal() +
+  theme(legend.title = element_blank(), 
+        legend.position = "top")
+
+```
+
+## Outliers and Anomalies
+
+### Boxplots
+
+```{r}
+# Boxplot for Danceability
+ggplot(combined_data_long, aes(x = period, y = danceability, fill = period)) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 2, alpha = 0.5) +
+  labs(title = "Danceability Distribution with Outliers", x = "Period", y = "Danceability") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  theme_minimal()
+
+# Boxplot for Tempo
+ggplot(combined_data_long, aes(x = period, y = tempo, fill = period)) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 2, alpha = 0.5) +
+  labs(title = "Tempo Distribution with Outliers", x = "Period", y = "Tempo (BPM)") +
+  scale_fill_manual(values = c("Pre-COVID" = "skyblue", "Post-COVID" = "salmon")) +
+  theme_minimal()
+
+```
+
+### Z-scores
+
+```{r}
+# Compute Z-scores for Danceability and Tempo
+combined_data_long <- combined_data_long %>%
+  mutate(
+    z_score_danceability = (danceability - mean(danceability, na.rm = TRUE)) / sd(danceability, na.rm = TRUE),
+    z_score_tempo = (tempo - mean(tempo, na.rm = TRUE)) / sd(tempo, na.rm = TRUE)
+  )
+
+# Filter out rows where z-score is greater than 3 (outliers)
+outliers_danceability <- combined_data_long %>% filter(abs(z_score_danceability) > 3)
+outliers_tempo <- combined_data_long %>% filter(abs(z_score_tempo) > 3)
+
+# View potential outliers
+outliers_danceability
+outliers_tempo
+
+```
+
+### IQR
+
+```{r}
+# Calculate the IQR for Danceability and Tempo
+iqr_danceability <- IQR(combined_data_long$danceability, na.rm = TRUE)
+iqr_tempo <- IQR(combined_data_long$tempo, na.rm = TRUE)
+
+# Define lower and upper bounds for outliers
+lower_bound_danceability <- quantile(combined_data_long$danceability, 0.25) - 1.5 * iqr_danceability
+upper_bound_danceability <- quantile(combined_data_long$danceability, 0.75) + 1.5 * iqr_danceability
+
+lower_bound_tempo <- quantile(combined_data_long$tempo, 0.25) - 1.5 * iqr_tempo
+upper_bound_tempo <- quantile(combined_data_long$tempo, 0.75) + 1.5 * iqr_tempo
+
+# Filter outliers based on IQR
+outliers_iqr_danceability <- combined_data_long %>%
+  filter(danceability < lower_bound_danceability | danceability > upper_bound_danceability)
+
+outliers_iqr_tempo <- combined_data_long %>%
+  filter(tempo < lower_bound_tempo | tempo > upper_bound_tempo)
+
+# View potential outliers
+outliers_iqr_danceability
+outliers_iqr_tempo
+
+```
+
+## Hypothesis Statement
+
+### Null Hypothesis (H₀):
+There is no significant difference in the average danceability and tempo (BPM) before and after COVID-19.
+
+### Alternative Hypothesis (H₁):
+There is a statistically significant difference in danceability and/or tempo before and after COVID-19.
+
+## Hypothesis Testing
+
+### MANOVA Setup
+
+We will begin by defining the MANOVA model to test for significant differences in the dependent variables: **danceability** and **tempo** (BPM) across the **period** (pre-COVID vs. post-COVID). The `period` variable is the independent factor.
+
+```{r}
+# Fit the MANOVA model
+manova_model <- manova(cbind(danceability, tempo) ~ period, data = combined_data_long)
+
+# Summary of the MANOVA results
+summary(manova_model)
+
+```
+
+```{r}
+# Univariate ANOVA for Danceability
+anova_danceability <- aov(danceability ~ period, data = combined_data_long)
+summary(anova_danceability)
+
+# Univariate ANOVA for Tempo
+anova_tempo <- aov(tempo ~ period, data = combined_data_long)
+summary(anova_tempo)
+
+```
+
+## Random Forest Model Selection and Performance Evaluation
+
+```{r}
+# Prepare the dataset (removing non-relevant columns and handling NA values)
+combined_data_model <- combined_data_long %>%
+  select(danceability, tempo, energy, acousticness, liveness, loudness, speechiness, valence, year) %>%
+  drop_na()  # Remove rows with missing values
+
+# Convert 'year' to factor if you want to include it as a categorical predictor
+combined_data_model$year <- as.factor(combined_data_model$year)
+
+# Random Forest model for predicting danceability
+rf_danceability <- randomForest(danceability ~ energy + acousticness + liveness + loudness + speechiness + valence + year, 
+                                data = combined_data_model, 
+                                ntree = 500, 
+                                importance = TRUE)
+
+# Random Forest model for predicting tempo
+rf_tempo <- randomForest(tempo ~ energy + acousticness + liveness + loudness + speechiness + valence + year, 
+                         data = combined_data_model, 
+                         ntree = 500, 
+                         importance = TRUE)
+
+# Print Random Forest model summaries
+print(rf_danceability)
+print(rf_tempo)
+
+# Evaluate model performance using RMSE and R-squared
+# Predicted values for danceability
+pred_danceability <- predict(rf_danceability, combined_data_model)
+rmse_danceability <- sqrt(mean((pred_danceability - combined_data_model$danceability)^2))
+rsq_danceability <- 1 - sum((pred_danceability - combined_data_model$danceability)^2) / sum((mean(combined_data_model$danceability) - combined_data_model$danceability)^2)
+
+# Predicted values for tempo
+pred_tempo <- predict(rf_tempo, combined_data_model)
+rmse_tempo <- sqrt(mean((pred_tempo - combined_data_model$tempo)^2))
+rsq_tempo <- 1 - sum((pred_tempo - combined_data_model$tempo)^2) / sum((mean(combined_data_model$tempo) - combined_data_model$tempo)^2)
+
+# Print RMSE and R-squared for both models
+cat("Danceability Model - RMSE:", rmse_danceability, "R-squared:", rsq_danceability, "\n")
+cat("Tempo Model - RMSE:", rmse_tempo, "R-squared:", rsq_tempo, "\n")
+
+```
+
+## Conclusion (not finished)
+
+- Summarize findings from hypothesis testing.
+- Discuss implications of significant results for music trends before and after COVID-19.
+- Consider any limitations or future directions for analysis
+
+## Results (not finished)
+
+-We predict that there will be a statistically significant difference  in danceability and/or bpm/tempo before and after COVID-19.
+
+## Concluding Remarks (not finished)
+
+Our hypothesis was supported by our analysis and previous literature in the field. 
+
+## References
+
+Kalustian, K. K., & Ruth, N. (2021). “Evacuate the dancefloor”: Exploring and classifying spotify music listening before and during the COVID-19 pandemic in DACH countries. *Jahrbuch Der Deutschen Gesellschaft Für Musikpsychologie, 30*. [https://doi.org/10.5964/jbdgm.95](https://doi.org/10.5964/jbdgm.95)
+
+Maloney, L., O’Neill, K., & Gray, J. (2021). Alone together: A mixed-methods analysis of Spotify listening during the COVID-19 pandemic. *Journal of Music, Health, and Wellbeing*, 1-16. [https://www.researchgate.net/profile/Liam-Maloney/publication/356997671_Alone_Together_A_Mixed-Methods_Analysis_of_Spotify_Listening_During_the_COVID-19_Pandemic/links/61b7566b4b318a6970db3100/Alone-Together-A-Mixed-Methods-Analysis-of-Spotify-Listening-During-the-COVID-19-Pandemic.pdf](https://www.researchgate.net/profile/Liam-Maloney/publication/356997671_Alone_Together_A_Mixed-Methods_Analysis_of_Spotify_Listening_During_the_COVID-19_Pandemic/links/61b7566b4b318a6970db3100/Alone-Together-A-Mixed-Methods-Analysis-of-Spotify-Listening-During-the-COVID-19-Pandemic.pdf)
+
+---
+
+## About the Authors
+
+**Emily Le** is an undergraduate student at San Diego State University. Her degree is in psychology with an emphasis in neuroscience and a minor in statistics. Her current research projects are with the Social-Health and Affective Neuroscience (SHAN) lab led by Dr. Tristen Inagaki on social warmth and inflammatory responses of support givers as a research assistant and experimenter. She is also interning with the Digital Innovation (DigiLab) lab led by Dr. Kaveh Abhari on a project about neurodiversity, specifically ADHD in the workplace using artificial intelligence models. 
+
+**Vivian Magahis** is an undergraduate student at San Diego State University. She is currently majoring in psychology with an emphasis in industrial/organizational and double minoring in statistics and business management. She is currently involved in Dr. Lisa Kath’s Psychology of Organizational Wellness and Effectiveness Research (POWER) lab that is currently looking at how patient-led aggression towards healthcare workers affects them. She is also involved in Dr. Wiston Rodriguez’s Wellness and Representation (WAR) lab that focuses on occupational health psychology and diversity, equity, and inclusion in the workforce.
+
+**Bethany Sioson** is a graduating undergraduate student majoring in Statistics with an emphasis in Data Science. She has previously worked on several research projects with PECA (Program, Evaluation, Compliance, and Assessment), a nonprofit organization at San Diego State University. She contributed to working with multiple student surveys that helped secure government funding for various campus resources. Bethany is now currently gaining professional experience as an Engineering intern at NIWC Pacific, a defense company for the US Navy.
+
+**Kana Wong** is an undergraduate student at San Diego State University. She is currently on track to graduate with a major in Business Administration with an emphasis in Management Information Systems, and a minor in Statistics. As the Digital Coordinator for a local small business, Kana collaborates alongside the Marketing Director to develop various advertising and social media strategies. Kana’s experience includes analyzing data based on social media engagement, creating drip campaigns to promote events, and exploring SEO improvements to enhance online visibility. 
+
+**Ella Anderson** is an undergraduate student at San Diego State University. She is majoring in political science and minoring in statistics and interdisciplinary studies. She is currently interning at the San Diego Office of the City Attorney in the Family Justice Center, Your Safe Place (YSP). At YSP Ella aids community members affected by domestic violence, sex trafficking, family violence, sexual assault, and elder abuse. She chose a minor in statistics to gain a deeper understanding of the data surrounding issues clients face in the public interest sector of law. 
+
+**Blake Joseph** is a senior undergraduate student at San Diego State University. He is majoring in statistics with an emphasis in data science. He is currently working as both a private math tutor and a data engineering intern at a small firm. He also has previous experience in sales and management at Bay Club. Over the last few years, he has been involved in various research projects that encompass; geo spatial data analysis, machine learning, natural language processing, clustering, regression analysis, numerical optimization, etc. 
+
+---
+
+## Contact Information
+
+**Emily Le**  
+San Diego State University  
+Email: emilycle0679@gmail.com  
+LinkedIn: [www.linkedin.com/in/emily-le1](www.linkedin.com/in/emily-le1)
+
+**Vivian Magahis**  
+San Diego State University  
+Email: vivian.magahis@gmail.com  
+LinkedIn: [www.linkedin.com/in/vivian-magahis-b58231225](www.linkedin.com/in/vivian-magahis-b58231225)
+
+**Bethany Sioson**  
+San Diego State University  
+Email: bsioson12@gmail.com
+
+**Blake Joseph**  
+San Diego State University  
+Email: bjoseph1695@sdsu.edu
+
+**Kana Wong**  
+San Diego State University  
+Email: kanawong888@gmail.com  
+LinkedIn: [www.linkedin.com/in/kana-wong-817513294](www.linkedin.com/in/kana-wong-817513294)
+
+**Ella Anderson**  
+San Diego State University  
+Email: eanderson7460@sdsu.edu  
+LinkedIn: [www.linkedin.com/in/ella-anderson1](www.linkedin.com/in/ella-anderson1)
+
+---
